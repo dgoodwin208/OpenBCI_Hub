@@ -125,7 +125,7 @@ class OpenBCIBoard(object):
       self.streaming = True
     
     if self.is_simulator:
-      f = open('/Users/dang/CodeProjects/openbci/OpenBCI_Python/sampledata/meditation.txt','r')
+      f = open('/Users/Mel/Code/OpenBCI/danBci/sampledata/meditation.txt','r')
       rows = f.readlines()
       #pausetime in seconds
       pausetime= 1/SAMPLE_RATE

@@ -92,7 +92,11 @@ if __name__ == '__main__':
 	latest_string = "none yet"
 	
 	args = {
+<<<<<<< HEAD
     "host": HOST_IP,
+=======
+    "host":'127.0.0.1',
+>>>>>>> localhost
     "port": '8888',
     "json":True,
   	}
@@ -101,6 +105,10 @@ if __name__ == '__main__':
  
 	toggle_boardstreaming()
  	#Run the http server
+<<<<<<< HEAD
 	app.run(host= HOST_IP)
+=======
+	app.run(host= '127.0.0.1')
+>>>>>>> localhost
 	
 	

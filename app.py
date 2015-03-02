@@ -1,5 +1,6 @@
 from flask import Flask
 from flask import render_template
+from flask import request
 
 import open_bci_v3 as bci
 import os
@@ -13,6 +14,8 @@ from udp_server import UDPServer
 #bciboard_stopsignal -> Set True if the board should be stopped next second
 #sock_server -> udp_ser
 #latest_string -> Temporary string to pass data
+
+HOST_IP = "0.0.0.0"
 def printData(sample):
 	global latest_string
 	#print "Called!"
@@ -28,7 +31,6 @@ def printData(sample):
 
 def boardDoContinueCallback():
 	global bciboard_stopsignal
-	print "boardDoContinueCallback"
 	if bciboard_stopsignal:
 		bciboard_stopsignal = True
 		return False
@@ -46,28 +48,35 @@ def hello():
 		output = "ERROR"
 	return render_template('index.html',status = output)
 
-@app.route("/startstop")
-def postChange():
+@app.route("/startstop", methods=["POST","GET"])
+def startstop_handler():
+	global bciboard
+	try:
+		if request.method == 'GET':
+			return str(bciboard.streaming)		
+		else:
+			return toggle_boardstreaming()
+	except Exception as e:
+		print e
+
+def toggle_boardstreaming():
 	global latest_string, bciboard,bciboard_thread
 	global bciboard_stopsignal, sock_server
-	print "Entered startstop"
-	try:
-		if not bciboard.streaming:
-			#initialize the thread
-			bciboard_thread = threading.Thread(target=bciboard.start_streaming, args=[[printData,sock_server.handle_sample],boardDoContinueCallback])
-			#set daemon to true so the app.py can still be ended with a single ^C
-			bciboard_thread.daemon = True
-			#spawn the thread
-			bciboard_thread.start()	
-			output = "STARTING STREAMING"
-		else:
-			bciboard_stopsignal = True
-			#bciboard_thread = None
-			output = "STOPPING STREAMING"
-		
-	except Exception as e:
-		print e 
 
+	output = ""
+
+	if not bciboard.streaming:
+		#initialize the thread
+		bciboard_thread = threading.Thread(target=bciboard.start_streaming, args=[[printData,sock_server.handle_sample],boardDoContinueCallback])
+		#set daemon to true so the app.py can still be ended with a single ^C
+		bciboard_thread.daemon = True
+		#spawn the thread
+		bciboard_thread.start()	
+		output = "STARTING STREAMING"
+	else:
+		bciboard_stopsignal = True
+		#bciboard_thread = None
+		output = "STOPPING STREAMING"
 	return output
 # @app.route("/change",method=["GET"])
 # def getChange():
@@ -83,15 +92,15 @@ if __name__ == '__main__':
 	latest_string = "none yet"
 	
 	args = {
-    "host":'192.168.3.53',
+    "host": HOST_IP,
     "port": '8888',
     "json":True,
   	}
 	print args  
   	sock_server = UDPServer(args["host"], int(args["port"]), args["json"])
  
-	postChange()
+	toggle_boardstreaming()
  	#Run the http server
-	app.run(host= '0.0.0.0')
+	app.run(host= HOST_IP)
 	
 	

@@ -9,8 +9,9 @@ import open_bci_v3 as bci
 import os
 import time
 import threading
-from udp_server import UDPServer
 
+from udp_server import UDPServer
+from oscserver import OSCServer
 
 #global variables:
 #bciboard -> the link to the openbci board over UART
@@ -80,31 +81,33 @@ def test_message(message):
 
 
 def toggle_boardstreaming():
-  global latest_string, bciboard,bciboard_thread
-  global bciboard_stopsignal, sock_server
+	global latest_string, bciboard,bciboard_thread,bciboard_stopsignal
+	global sock_server, osc_server
 
-  output = ""
+	output = ""
 
-  if not bciboard.streaming:
-    #initialize the thread
-    bciboard_thread = threading.Thread(target=bciboard.start_streaming, args=[[printData,sock_server.handle_sample,sendSocketMessage],boardDoContinueCallback])
-    #set daemon to true so the app.py can still be ended with a single ^C
-    bciboard_thread.daemon = True
-    #spawn the thread
-    bciboard_thread.start()
-    output = "STARTING STREAMING"
-  else:
-    bciboard_stopsignal = True
-    #bciboard_thread = None
-    output = "STOPPING STREAMING"
-  return output
+	if not bciboard.streaming:
+		#initialize the thread
+		bciboard_thread = threading.Thread(target=bciboard.start_streaming, args=[[printData,sock_server.handle_sample,osc_server.handle_sample],boardDoContinueCallback])
+		#set daemon to true so the app.py can still be ended with a single ^C
+		bciboard_thread.daemon = True
+		#spawn the thread
+		bciboard_thread.start()	
+		output = "STARTING STREAMING"
+	else:
+		bciboard_stopsignal = True
+		#bciboard_thread = None
+		output = "STOPPING STREAMING"
+	return output
+
 # @app.route("/change",method=["GET"])
 # def getChange():
 #     return "From board: " + latest_string
 
 
 if __name__ == '__main__':
-  global latest_string, bciboard, bciboard_stopsignal,sock_server
+  global latest_string, bciboard, bciboard_stopsignal
+  global sock_server, osc_server
 
   bciboard_stopsignal = False
   port = '/dev/ttyUSB0'
@@ -119,7 +122,7 @@ if __name__ == '__main__':
     }
   print args
   sock_server = UDPServer(args["host"], int(args["port"]), args["json"])
-
+  osc_server = OSCServer(args["host"], 12345)
   toggle_boardstreaming()
 
   #Run the http server
@@ -127,3 +130,29 @@ if __name__ == '__main__':
   socketio.run(app)
 
 
+# =======
+# 	global latest_string, bciboard, bciboard_stopsignal
+# 	global sock_server, osc_server
+	
+# 	bciboard_stopsignal = False
+# 	port = '/dev/ttyUSB0'
+# 	baud = 115200
+# 	bciboard = bci.OpenBCIBoard(port=port, is_simulator=True)
+# 	latest_string = "none yet"
+	
+# 	args = {
+#     "host": HOST_IP,
+#     "port": '8888',
+#     "json":True,
+#   	}
+# 	print args  
+  	
+#   	sock_server = UDPServer(args["host"], int(args["port"]), args["json"])
+#  	osc_server = OSCServer(args["host"], 12345)
+
+# 	toggle_boardstreaming()
+#  	#Run the http server
+# 	app.run(host= HOST_IP)
+	
+	
+# >>>>>>> got OSC working, now testing with openframeworks

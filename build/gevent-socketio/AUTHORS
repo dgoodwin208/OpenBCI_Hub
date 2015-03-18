@@ -1,0 +1,14 @@
+This SocketIO server based on Gevent and was written by:
+
+  Jeffrey Gelens <jeffrey at noppo.pro>
+
+Current Maintainers:
+
+    Alexandre Bourget <alexandre.bourget@savoirfairelinux.com>
+    John Anderson <sontek@gmail.com>
+
+Contributors:
+    Denis Bilenko
+    Sébastien Béal
+    jpellerin (JP)
+    Philip Neustrom

@@ -22,6 +22,8 @@ import numpy as np
 import time
 import timeit
 import atexit
+import datetime as dt
+import sys, glob
 
 SAMPLE_RATE = 250.0  # Hz
 START_BYTE = bytes(0xA0)  # start of data packet
@@ -30,6 +32,7 @@ ADS1299_Vref = 4.5;  #reference voltage for ADC in ADS1299.  set by its hardware
 ADS1299_gain = 24.0;  #assumed gain setting for ADS1299.  set by its Arduino code
 scale_fac_uVolts_per_count = ADS1299_Vref/(pow(2,23)-1)/ADS1299_gain*1000000.;
 
+streamstart_time = dt.datetime.now()
 # Commands for in SDK http://docs.openbci.com/software/01-OpenBCI_SDK:
 
 # command_stop = "s";
@@ -63,14 +66,16 @@ class OpenBCIBoard(object):
   def __init__(self, port=None, baud=115200, filter_data=True,
     scaled_output=True, daisy=False,is_simulator=False):
     if not port:
-      port = find_port()
+      ports = serial_ports()
+      print "No port specified. Blindly choosing the first one: " + str(ports[0])
+      port = ports[0]
       if not port:
         raise OSError('Cannot find OpenBCI port')
 
     self.is_simulator = is_simulator
 
     if not self.is_simulator:
-      self.ser = serial.Serial(port, baud)
+      self.ser = serial.Serial(port, baud) #timeout=5
       print("Serial established...")
       #Initialize 32-bit board, doesn't affect 8bit board
       self.ser.write('v');
@@ -104,7 +109,7 @@ class OpenBCIBoard(object):
     while self.streaming:
       print(struct.unpack('B',self.ser.read())[0]);
 
-  def start_streaming(self, datacallback, endcallback, lapse=-1):
+  def start_streaming(self, datacallback, endcallback,hardwarecallback, lapse=-1):
     """
     Start handling streaming data from the board. Call a provided callback
     for every single sample that is processed (every two samples with daisy module).
@@ -112,7 +117,12 @@ class OpenBCIBoard(object):
     Args:
       callback: A callback function -- or a list of functions -- that will receive a single argument of the
           OpenBCISample object captured.
+      endcallback: a function defined from the client that passes in logic for ending the streaming
+      hardwarecallback: if there was an issue, the hardware callback can pass messages out
     """
+    #use a global veriable to autmatically create timestamps for sampledata
+    #TODO: this feels hacky - is there a more elegant sol'n? -DG 
+    global streamstart_time
 
     # Enclose callback funtion in a list if it comes alone
     if not isinstance(datacallback, list):
@@ -121,11 +131,13 @@ class OpenBCIBoard(object):
     #Set object variable for streaming
     if not self.streaming:
       if not self.is_simulator:
+        print "Sending 'b' to the board to start streaming"
         self.ser.write('b')
+        streamstart_time = dt.datetime.now()
       self.streaming = True
     
     if self.is_simulator:
-      f = open('/Users/Mel/Code/OpenBCI/danBci/sampledata/meditation.txt','r')
+      f = open('static/meditation.txt','r')
       rows = f.readlines()
       #pausetime in seconds
       pausetime= 1/SAMPLE_RATE
@@ -148,7 +160,7 @@ class OpenBCIBoard(object):
             for data_idx in range(1,9):
               channel_data.append(float(elts[data_idx]))
             #For now, we'll ignore aux data
-            avg_aux_data = []
+            avg_aux_data = [-1, -1,1]
             whole_sample = OpenBCISample(sample_id, channel_data,avg_aux_data )
             #loop through the callbacks given to the data
             for call in datacallback:
@@ -160,20 +172,22 @@ class OpenBCIBoard(object):
               doContinue = endcallback()
               if not doContinue:
                 self.stop()
-                return;
+                return
 
 
       return
 
-    
-
+    #Otherwise, load real data
     start_time = timeit.default_timer()
-
-    
-    
+    last_seen_time = dt.datetime.now()
+    check_end_ctr = 0
     while self.streaming:
+      print "In streaming loop for real data"
       # read current sample
       sample = self._read_serial_binary()
+      last_seen_time = dt.datetime.now()
+      check_end_ctr +=1
+
       # if a daisy module is attached, wait to concatenate two samples (main board + daisy) before passing it to callback
       if self.daisy:
         # odd sample: daisy sample, save for later
@@ -189,9 +203,18 @@ class OpenBCIBoard(object):
       else:
         for call in datacallback:
           call(sample)
-      if(lapse > 0 and timeit.default_timer() - start_time > lapse):
+      #Check if anything has gone wrong with the board, in which case send a callback
+      if(lapse > 0 and (dt.datetime.now() - last_seen_time).seconds > lapse):
+        print "Sees that the board has lapsed"
+        hardwarecallback()
         self.stop();
 
+      #Check if an application has said to stop streaming
+      if (check_end_ctr % SAMPLE_RATE)==0:
+        doContinue = endcallback()
+        if not doContinue:
+          self.stop()
+          return
     #If exited, stop streaming
     #self.ser.write('s')
 
@@ -271,12 +294,16 @@ class OpenBCIBoard(object):
   """
   def _read_serial_binary(self, max_bytes_to_skip=3000):
     def read(n):
+      # b = []
+      # for x in range(n):
+      #   i = self.ser.read()
+      #   b.append(i)
+      #   print i.encode("hex")
       b = self.ser.read(n)
-      # print bytes(b)
+      # print "bytes: " + b
       return b
 
     for rep in xrange(max_bytes_to_skip):
-
       #Looking for start and save id when found
       if self.read_state == 0:
         b = read(1)
@@ -334,16 +361,18 @@ class OpenBCIBoard(object):
         self.read_state = 3;
 
       elif self.read_state == 3:
+
         val = bytes(struct.unpack('B', read(1))[0])
         if (val == END_BYTE):
           sample = OpenBCISample(packet_id, channel_data, aux_data)
           self.read_state = 0 #read next packet
+          
           return sample
         else:
           self.warn("Warning: Unexpected END_BYTE found <%s> instead of <%s>,\
-            discarted packet with id <%d>"
+            discarded packet with id <%d>"
             %(val, END_BYTE, packet_id))
-
+    print "DONE"
   def test_signal(self, signal):
     if signal == 0:
       self.ser.write('0')
@@ -438,10 +467,53 @@ class OpenBCIBoard(object):
 
 class OpenBCISample(object):
   """Object encapulsating a single sample from the OpenBCI board."""
+  
+  def millis_interval(self,start, end):
+    """start and end are datetime instances"""
+    diff = end - start
+    millis = diff.days * 24 * 60 * 60 * 1000
+    millis += diff.seconds * 1000
+    millis += diff.microseconds / 1000
+    return millis
+
   def __init__(self, packet_id, channel_data, aux_data):
-    self.id = packet_id;
-    self.channel_data = channel_data;
-    self.aux_data = aux_data;
+    self.id = packet_id
+    self.channel_data = channel_data
+    self.aux_data = aux_data
+    #t is the total elapsed milliseconds of the openbci board
+    self.t = self.millis_interval(streamstart_time, dt.datetime.now())
+    #self.badPacket = badPacket
 
 
+#Utility function taken from: http://stackoverflow.com/questions/12090503/listing-available-com-ports-with-python
+def serial_ports():
+    """Lists serial ports
+
+    :raises EnvironmentError:
+        On unsupported or unknown platforms
+    :returns:
+        A list of available serial ports
+    """
+    if sys.platform.startswith('win'):
+        ports = ['COM' + str(i + 1) for i in range(256)]
+
+    elif sys.platform.startswith('linux') or sys.platform.startswith('cygwin'):
+        # this is to exclude your current terminal "/dev/tty"
+        ports = glob.glob('/dev/tty[A-Za-z]*')
+
+    elif sys.platform.startswith('darwin'):
+        ports = glob.glob('/dev/tty.*')
+
+    else:
+        raise EnvironmentError('Unsupported platform')
+
+    result = []
+    for port in ports:
+        try:
+            s = serial.Serial(port)
+            s.close()
+            result.append(port)
+        except (OSError, serial.SerialException):
+            pass
+    return result
 

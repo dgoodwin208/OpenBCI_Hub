@@ -11,52 +11,72 @@
 </style>
 </head>
 <body>
+	<center><img src="static/journal.pgen.1001117.png" alt="Smiley face" align="middle" width="200" > </center>
 	<button class="btn">Stream</button>
-  <h1> {{ status }}!</h1>
+  	<h1> Control Point </h1>
+  	<h1> {{ status }}!</h1>
 <script src="https://code.jquery.com/jquery-2.1.3.js"></script>
 <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/0.9.16/socket.io.min.js"></script>
 <script src="http://smoothiecharts.org/smoothie.js"></script>
 <script type="text/javascript" charset="utf-8">
-	function Timeline() {
-	  this.data = new TimeSeries();
-	  this.chart = new SmoothieChart();
-	  this.chart.addTimeSeries(this.data, { strokeStyle: 'rgba(0, 255, 0, 1)', fillStyle: 'rgba(0, 255, 0, 0.2)', lineWidth: 1 });
+	
+	var first_bcitime = -1;
+	var numPlots = 2; //Originally 8
+	var delay_time = 1000;
+	
+	eegdata = [];
+
+	for (var i = 0; i < numPlots; i++) {
+	  	eegdata.push(new TimeSeries());
+	}
+	
+	  
 	  var chartEl = document.createElement("CANVAS");
 	  chartEl.setAttribute("width", "400");
 	  chartEl.setAttribute("height", "200");
-	  this.chart.streamTo(chartEl, 500);
+
+
+	  
+	  var seriesOptions = { strokeStyle: 'rgba(0, 255, 0, 1)', fillStyle: 'rgba(0, 255, 0, 0.2)', lineWidth: 1,millisPerLine: 250};
+	  chart = new SmoothieChart(new SmoothieChart({ millisPerPixel: 20, grid: { strokeStyle: '#555555', lineWidth: 1, millisPerLine: 1000, verticalSections: 2 }}));
+	  
+	  for (var i = 0; i < numPlots; i++) {
+	    chart.addTimeSeries(eegdata[i], seriesOptions);
+	  }
+
+	var start_time = new Date().getTime();
+
+	  //Setting the delay time to the moment the chart starts allows smoothiecharts to stream
+	  //relative time values. :)
+	  // https://groups.google.com/forum/#!msg/smoothie-charts/OLlsfQjT6WI/v03141e5AvEJ
+	  chart.streamTo(chartEl, start_time); 
 	  document.body.appendChild(chartEl);
-	}
-
-	Timeline.prototype.sample = function (s) {
-	  this.data.append(new Date().getTime(), s);
-	}
-
-
-	var waves = [];
-	for (var i = 0; i < 8; i++) {
-	  waves.push(new Timeline());
-	}
-
-	var process = 1;
+	  
 
   var socket = io.connect('http://' + document.domain + ':' + location.port + '/test');
   console.log('domain', document.domain, ':', location.port);
   socket.on('connect', function() {
-  		console.log('connected');
+  	console.log('connected');
       socket.emit('test event', {data: 'I\'m connected!'});
   });
+  
   socket.on('stream', function (stream){
-  	console.log('recieved message');
-  	// console.log(stream.data);
+  		//Receiving Data
+  		console.log('sees data');
+  		if (first_bcitime<0){
+			first_bcitime = stream.t; //t is the milliseconds since the bci board started
+		 }
 
-	  if (process % 3 == 0) {
-	    for (var i = 0; i < 8; i++) {
-	        waves[i].sample(stream.data[i]);
-	    }
-	    process = 1;
-	  }
-	  process++;
+		  //To get a smooth stream of data, we have to do some arithmetic
+		  //(now - streaming start time) + (latest bci delta time - )
+		  
+		  var graph_time = stream.t - first_bcitime;//(now - first_bcitime) + stream.t;
+
+	      for (var i = 0; i < numPlots; i++) {
+	        //waves[i].sample(stream.t, stream.data[i],i);
+	        	eegdata[i].append(graph_time,stream.data[i]);
+	    	}
+	
   });
 </script>
 <script>
@@ -64,7 +84,7 @@
 		console.log('button clicked');
 		$.ajax({
 		   type: "POST",
-		   url: 'http://localhost:5000/startstop'
+		   url: 'http://localhost:5000/board/stream/start'
 		})
 			.done(function (data) {
 				console.log(data);
@@ -74,14 +94,14 @@
 
 
 $(document).ready(function() {
-		console.log('button clicked');
-		$.ajax({
-		   url: 'http://localhost:5000/startstop'
-		})
-			.done(function (data) {
-				console.log(data);
-			});
-		$('.btn').toggleClass('stream');
+		// console.log('button clicked');
+		// $.ajax({
+		//    url: 'http://localhost:5000/board/stream/start'
+		// })
+		// 	.done(function (data) {
+		// 		console.log(data);
+		// 	});
+		// $('.btn').toggleClass('stream');
 	});
 </script>
 </body>

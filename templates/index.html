@@ -55,10 +55,18 @@
 
   var socket = io.connect('http://' + document.domain + ':' + location.port + '/test');
   console.log('domain', document.domain, ':', location.port);
+  console.log(socket);
+  
   socket.on('connect', function() {
   	console.log('connected');
       socket.emit('test event', {data: 'I\'m connected!'});
   });
+
+  socket.on('connect_failed', function(){
+    console.log('Connection Failed');
+	});
+
+
   
   socket.on('stream', function (stream){
   		//Receiving Data

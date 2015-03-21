@@ -65,16 +65,21 @@ class OpenBCIBoard(object):
 
   def __init__(self, port=None, baud=115200, filter_data=True,
     scaled_output=True, daisy=False,is_simulator=False):
-    if not port:
-      ports = serial_ports()
-      print "No port specified. Blindly choosing the first one: " + str(ports[0])
-      port = ports[0]
-      if not port:
-        raise OSError('Cannot find OpenBCI port')
-
+    
     self.is_simulator = is_simulator
 
+
+
+    
+
     if not self.is_simulator:
+      if not port:
+        ports = serial_ports()
+        print "No port specified. Blindly choosing the first one: " + str(ports[0])
+        port = ports[0]
+        if not port:
+          raise OSError('Cannot find OpenBCI port')
+
       self.ser = serial.Serial(port, baud) #timeout=5
       print("Serial established...")
       #Initialize 32-bit board, doesn't affect 8bit board
@@ -134,7 +139,11 @@ class OpenBCIBoard(object):
         print "Sending 'b' to the board to start streaming"
         self.ser.write('b')
         streamstart_time = dt.datetime.now()
-      self.streaming = True
+      
+      #If it's just the simulator, we can set streaming to true
+      #For real data, we need to make sure we're getting data! (done in the loop below)
+      else:
+        self.streaming = True
     
     if self.is_simulator:
       f = open('static/meditation.txt','r')
@@ -185,6 +194,10 @@ class OpenBCIBoard(object):
       print "In streaming loop for real data"
       # read current sample
       sample = self._read_serial_binary()
+      #Are we getting data? Good, then set streaming = true
+      if not self.streaming:
+        self.streaming=True
+
       last_seen_time = dt.datetime.now()
       check_end_ctr +=1
 
@@ -302,7 +315,7 @@ class OpenBCIBoard(object):
       b = self.ser.read(n)
       # print "bytes: " + b
       return b
-
+    print "entered read serial binary"
     for rep in xrange(max_bytes_to_skip):
       #Looking for start and save id when found
       if self.read_state == 0:

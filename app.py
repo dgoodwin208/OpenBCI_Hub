@@ -85,7 +85,7 @@ def board_command_handler(channel_num,command):
 def startstop_handler(field,command):
   global bciboard
   if field=="stream":
-    print "Yes sees this"
+
     try:
       if command == "start":
         return set_boardstreaming(True)
@@ -117,11 +117,11 @@ def sendSocketMessage(sample):
 # def test_message(message):
 #   print 'test recieved'
 
-@socketio.on('connect', namespace='/chat')
+@socketio.on('connect', namespace='/test')
 def test_connect():
     emit('my response', {'data': 'Connected'})
 
-@socketio.on('disconnect', namespace='/chat')
+@socketio.on('disconnect', namespace='/test')
 def test_disconnect():
     print('Client disconnected')
 
@@ -195,8 +195,8 @@ if __name__ == '__main__':
   print "Sees the following port options: " + str(available_ports)
   print "It is currently strongly advised to specify the port in code"
   
-  port = available_ports[1]
-  bciboard = bci.OpenBCIBoard(port=port, is_simulator=False) 
+  #port = available_ports[1]
+  bciboard = bci.OpenBCIBoard(is_simulator=True) #port=port, 
   latest_string = "none yet"
   
   args = {
@@ -205,7 +205,7 @@ if __name__ == '__main__':
     "json":True,
     }
   print args  
-    
+  
   sock_server = UDPServer(args["host"], int(args["port"]), args["json"])
   osc_server = OSCServer(args["host"], 12345)
 

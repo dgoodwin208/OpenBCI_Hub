@@ -19,6 +19,12 @@ from oscserver import OSCServer
 #bciboard_stopsignal -> Set True if the board should be stopped next second
 #sock_server -> udp_ser
 #latest_string -> Temporary string to pass data
+#bciboard_callbacks -> array of all call back functions
+#docallback_osc -> boolean to stream over osc
+#docallback_udp -> boolean to stream over udp
+#docallback_socket -> boolean to stream over socket (works with hub)
+#docallback_csv -> to csv (not currently implement)
+#docallback_toconsole -> print to python log?
 
 HOST_IP = "0.0.0.0"
 app = Flask(__name__)
@@ -57,6 +63,40 @@ def boardErrorCallback():
   #The openbci board periodically checks to see if it should shut off
   print "Sees that the board exited."
 
+def modify_bcicallbacks(string_command,do_set):
+  global bciboard_callbacks
+  global docallback_toconsole, docallback_csv,docallback_socket,docallback_osc, docallback_udp
+
+  if string_command =="udp":
+    docallback_udp = do_set
+  elif string_command == "csv":
+    docallback_csv = do_set
+  elif string_command == "socket":
+    docallback_socket = do_set
+  elif string_command == "osc":
+    docallback_osc = do_set
+  elif string_command == "console":
+    docallback_toconsole = do_set
+  else:
+    #We don't know this input
+    return None
+  cbacks = []
+  if docallback_osc:
+    cbacks.append(osc_server.handle_sample)
+  if docallback_udp:
+    cbacks.append(sock_server.handle_sample)
+  if docallback_udp:
+    cbacks.append(sendSocketMessage)
+  if docallback_toconsole:
+    cbacks.append(printData)
+  #TODO: finish the CSV streaming option
+
+  #write to the global variable (used by the streaming loop)
+  bciboard_callbacks = cbacks
+
+  return 1
+
+
 @app.route("/")
 def hello():
   global bciboard
@@ -80,7 +120,10 @@ def board_command_handler(channel_num,command):
   elif command == "off":
     return "turning channel " + str(channel_num) + "off"
 
-#Filters, Streaming, 
+
+
+
+#Filters, etc. are handled in this block
 @app.route("/board/<field>/<command>", methods=["POST","GET"])
 def startstop_handler(field,command):
   global bciboard
@@ -107,6 +150,33 @@ def startstop_handler(field,command):
   elif field == "connection":
     return (bciboard is not None)
 
+@app.route("/output/<streamtype>/<onoffread>", methods=["POST","GET"])
+def streamoutput_handler(streamtype,onoffread):
+  try:
+    if onoffread=="read":
+      output = ""
+      if streamtype =="udp":
+        output += str(docallback_udp)
+      elif streamtype == "csv":
+        output += str(docallback_csv)
+      elif streamtype == "socket":
+        output += str(docallback_socket)
+      elif streamtype == "osc":
+        output += str(docallback_osc)
+      elif streamtype == "console":
+        output += docallback_toconsole 
+      return output 
+
+    res = modify_bcicallbacks(streamtype,onoffread=="on")
+
+    if not res:
+      return "ERROR: STREAMTYPE NOT CORRECT."
+    else:
+      return "SUCCESS"
+  except Exception as e:
+      print e
+      return e
+
 def sendSocketMessage(sample):
   try:
     socketio.emit('stream', {'data': sample.channel_data,'t':sample.t}, namespace='/test')
@@ -128,14 +198,16 @@ def test_disconnect():
 
 def set_boardstreaming(doStart):
   global latest_string, bciboard,bciboard_thread,bciboard_stopsignal
-  global sock_server, osc_server
-
+  
   output = ""
 
   if doStart and not bciboard.streaming:
     #initialize the thread 
     #,sendSocketMessage
-    bciboard_thread = threading.Thread(target=bciboard.start_streaming, args=[[printData,sock_server.handle_sample,osc_server.handle_sample,sendSocketMessage],boardDoContinueCallback,boardErrorCallback,STREAM_TIMEOUTLAPSE])
+    
+    
+    bciboard_thread = threading.Thread(target=bciboard.start_streaming, args=[bciboard_callbacks,boardDoContinueCallback,boardErrorCallback,STREAM_TIMEOUTLAPSE])
+    
     #set daemon to true so the app.py can still be ended with a single ^C
     bciboard_thread.daemon = True
     #spawn the thread
@@ -152,41 +224,14 @@ def set_boardstreaming(doStart):
 
   return output
 
-# @app.route("/change",method=["GET"])
-# def getChange():
-#     return "From board: " + latest_string
-
 
 if __name__ == '__main__':
-  # global latest_string, bciboard, bciboard_stopsignal
-  # global sock_server, osc_server
 
-  # bciboard_stopsignal = False
-  # port = '/dev/ttyUSB0'
-  # baud = 115200
-  # bciboard = bci.OpenBCIBoard(port=port, is_simulator=True)
-  # latest_string = "none yet"
-
-  # args = {
-  #   "host": HOST_IP,
-  #   "port": '8888',
-  #   "json": True,
-  #   }
-  # print args
-  
-  # sock_server = UDPServer(args["host"], int(args["port"]), args["json"])
-  # osc_server = OSCServer(args["host"], 12345)
-  # set_boardstreaming(True)
-
-  # #Run the http server
-  # app.run(host= HOST_IP)
-  # socketio.run(app)
-
-
-# =======
   global latest_string, bciboard, bciboard_stopsignal
   global sock_server, osc_server
-  
+  global bciboard_callbacks
+  global docallback_toconsole, docallback_csv,docallback_socket,docallback_osc, docallback_udp
+
   bciboard_stopsignal = False
   
   baud = 115200
@@ -196,22 +241,27 @@ if __name__ == '__main__':
   print "It is currently strongly advised to specify the port in code"
   
   #port = available_ports[1]
-  bciboard = bci.OpenBCIBoard(is_simulator=True) #port=port, 
+  bciboard = bci.OpenBCIBoard(is_simulator=False) #port=port, 
   latest_string = "none yet"
   
   args = {
     "host": HOST_IP,
     "port": '8888',
-    "json":True,
+    "json": True,
     }
   print args  
   
   sock_server = UDPServer(args["host"], int(args["port"]), args["json"])
   osc_server = OSCServer(args["host"], 12345)
 
-  #set_boardstreaming(True)
-  #Run the http server
-  #app.run(host= HOST_IP)
+  #define the list of callback fundctions now:
+  docallback_toconsole = True
+  docallback_csv = False
+  docallback_socket = True
+  docallback_osc = True
+  docallback_udp = True
+  bciboard_callbacks = [sock_server.handle_sample,osc_server.handle_sample,sendSocketMessage,printData] 
+
   socketio.run(app)
   print "HERE"
   

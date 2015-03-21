@@ -154,7 +154,7 @@ class OpenBCIBoard(object):
       #check for stopping signal from the endcallback once a second
       check_end_ctr = 0
 
-      #raw data looks like this:
+      #raw data from simulator looks like this:
       # %OpenBCI Raw EEG Data % %Sample Rate = 250.0 Hz %First Column = SampleIndex %Other Columns = EEG data in microvolts
       # -29, 7715.87, 47.03, 16367.22, 33514.58, 1802.49, 39369.40, -2371.94, 28161.54
       while 1:
@@ -190,14 +190,15 @@ class OpenBCIBoard(object):
     start_time = timeit.default_timer()
     last_seen_time = dt.datetime.now()
     check_end_ctr = 0
-    while self.streaming:
-      print "In streaming loop for real data"
+    while 1:
       # read current sample
       sample = self._read_serial_binary()
       #Are we getting data? Good, then set streaming = true
       if not self.streaming:
         self.streaming=True
-
+      if not sample: #ie, if sample is None
+        #TODO: Figure out how to gracefully handle a dropped packet
+        break 
       last_seen_time = dt.datetime.now()
       check_end_ctr +=1
 
@@ -215,6 +216,7 @@ class OpenBCIBoard(object):
             call(whole_sample)
       else:
         for call in datacallback:
+          print sample.t
           call(sample)
       #Check if anything has gone wrong with the board, in which case send a callback
       if(lapse > 0 and (dt.datetime.now() - last_seen_time).seconds > lapse):
@@ -223,11 +225,13 @@ class OpenBCIBoard(object):
         self.stop();
 
       #Check if an application has said to stop streaming
-      if (check_end_ctr % SAMPLE_RATE)==0:
+      if (check_end_ctr % SAMPLE_RATE) == 0:
         doContinue = endcallback()
         if not doContinue:
           self.stop()
           return
+      if not self.streaming:
+        break;
     #If exited, stop streaming
     #self.ser.write('s')
 
@@ -315,7 +319,6 @@ class OpenBCIBoard(object):
       b = self.ser.read(n)
       # print "bytes: " + b
       return b
-    print "entered read serial binary"
     for rep in xrange(max_bytes_to_skip):
       #Looking for start and save id when found
       if self.read_state == 0:
@@ -324,7 +327,7 @@ class OpenBCIBoard(object):
           if not self.ser.inWaiting():
               self.warn('Device appears to be stalled. Restarting...')
               self.ser.write('b\n')  # restart if it's stopped...
-              time.sleep(.100)
+              time.sleep(.001)
               continue
         if bytes(struct.unpack('B', b)[0]) == START_BYTE:
           if(rep != 0):
@@ -386,6 +389,7 @@ class OpenBCIBoard(object):
             discarded packet with id <%d>"
             %(val, END_BYTE, packet_id))
     print "DONE"
+    return None
   def test_signal(self, signal):
     if signal == 0:
       self.ser.write('0')
@@ -512,10 +516,10 @@ def serial_ports():
 
     elif sys.platform.startswith('linux') or sys.platform.startswith('cygwin'):
         # this is to exclude your current terminal "/dev/tty"
-        ports = glob.glob('/dev/tty[A-Za-z]*')
+        ports = glob.glob('/dev/tty[A-Za-z].usb*')
 
     elif sys.platform.startswith('darwin'):
-        ports = glob.glob('/dev/tty.*')
+        ports = glob.glob('/dev/tty.usb*')
 
     else:
         raise EnvironmentError('Unsupported platform')

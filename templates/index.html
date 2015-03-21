@@ -44,7 +44,7 @@
 	    chart.addTimeSeries(eegdata[i], seriesOptions);
 	  }
 
-	var start_time = new Date().getTime();
+		var start_time = new Date().getTime()+1000;
 
 	  //Setting the delay time to the moment the chart starts allows smoothiecharts to stream
 	  //relative time values. :)
@@ -55,7 +55,6 @@
 
   var socket = io.connect('http://' + document.domain + ':' + location.port + '/test');
   console.log('domain', document.domain, ':', location.port);
-  console.log(socket);
   
   socket.on('connect', function() {
   	console.log('connected');
@@ -102,13 +101,33 @@
 
 
 $(document).ready(function() {
-		// console.log('button clicked');
-		// $.ajax({
-		//    url: 'http://localhost:5000/board/stream/start'
-		// })
-		// 	.done(function (data) {
-		// 		console.log(data);
-		// 	});
+		
+		$.ajax({
+		   url: 'http://localhost:5000/output/udp/read'
+		}).done(function (data) {
+				console.log("UDP stream: " + data);
+			});
+		$.ajax({
+		   url: 'http://localhost:5000/output/console/read'
+		}).done(function (data) {
+				console.log("Server console stream: " + data);
+			});
+		$.ajax({
+		   url: 'http://localhost:5000/output/csv/read'
+		}).done(function (data) {
+				console.log("CSV stream: " + data);
+			});
+		$.ajax({
+		   url: 'http://localhost:5000/output/socket/read'
+		}).done(function (data) {
+				console.log("Socket streaming: " + data);
+			});
+		$.ajax({
+		   url: 'http://localhost:5000/output/osc/read'
+		}).done(function (data) {
+				console.log("OSC streaming: " + data);
+			});
+
 		// $('.btn').toggleClass('stream');
 	});
 </script>

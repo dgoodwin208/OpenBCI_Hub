@@ -33,13 +33,23 @@ Then navigate your browser to your [localhost:5000](http://localhost:5000)
 The web-control interface has a few HTTP endpoints. 
 
 When `app.py` is first started, the streaming is not started. You can start by sending a GET request to 
->> /board/stream/start (and similarly,  /board/stream/stop)
+```
+/board/stream/<start|stop>
+```
+so starting data out of the board is:
+```
+/board/stream/start
+```
 
 All streaming methods are by default turned on. To modify this you send GET requests to 
 
->> /output/<udp/csv/socket/osc>/<on/off/read>
+```
+/output/<udp|csv|socket|osc>/<on|off|read>
+```
 so to turn off the udp streaming:
->> /output/udp/off
+```
+/output/udp/off
+```
 
 ##Notes on this early version
 This system is new and will be developed as rapidly as possible in the next few weeks by Dan Goodwin and Mel Van Londen. For now, a few architectual compromises have been made

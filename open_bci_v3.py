@@ -75,10 +75,17 @@ class OpenBCIBoard(object):
     if not self.is_simulator:
       if not port:
         ports = serial_ports()
+        
+        if len(ports)==0:
+          print "Can't see any available serial ports. Giving dummy value"
+          ports = ["dummyport"]
+          
         print "No port specified. Blindly choosing the first one: " + str(ports[0])
         port = ports[0]
+        
         if not port:
           raise OSError('Cannot find OpenBCI port')
+
 
       self.ser = serial.Serial(port, baud) #timeout=5
       print("Serial established...")

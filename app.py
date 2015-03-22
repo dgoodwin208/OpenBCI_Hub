@@ -12,6 +12,7 @@ import threading
 
 from udp_server import UDPServer
 from oscserver import OSCServer
+import argparse
 
 #global variables:
 #bciboard -> the link to the openbci board over UART
@@ -232,16 +233,36 @@ if __name__ == '__main__':
   global bciboard_callbacks
   global docallback_toconsole, docallback_csv,docallback_socket,docallback_osc, docallback_udp
 
+
+  parser = argparse.ArgumentParser(description="OpenBCI 'user'")
+  parser.add_argument('-sim', '--simulator', action='store_true',
+        help="Run the openbci simulator, rather than real data")
+  
+  parser.add_argument('-p', '--port',
+        help="Port to connect to OpenBCI Dongle " +
+        "( ex /dev/ttyUSB0 or /dev/tty.usbserial-* )")
+
+  args = parser.parse_args()
+
+  #initialize the stop signal for the repeate streaming data
   bciboard_stopsignal = False
   
-  baud = 115200
-
   available_ports = bci.serial_ports()
   print "Sees the following port options: " + str(available_ports)
   print "It is currently strongly advised to specify the port in code"
   
   #port = available_ports[1]
-  bciboard = bci.OpenBCIBoard(is_simulator=False) #port=port, 
+  if args.port:
+    print "Using manually specific port: " + str(args.port)
+    specific_port = args.port
+  else:
+    specific_port = None
+
+  use_sim= False
+  if args.simulator:
+    print "Initializing the simulator board"
+    use_sim = True
+  bciboard = bci.OpenBCIBoard(is_simulator=use_sim, port=specific_port)  
   latest_string = "none yet"
   
   args = {

@@ -19,6 +19,7 @@ class OSCServer(object):
 		mes.append(sample.channel_data)
 		# silently pass if connection drops
 		try:
+			print 'osc message'
 			self.client.send(mes)
 		except:
 			return	

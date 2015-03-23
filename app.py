@@ -180,6 +180,7 @@ def streamoutput_handler(streamtype,onoffread):
 
 def sendSocketMessage(sample):
   try:
+    print "socket message"
     socketio.emit('stream', {'data': sample.channel_data,'t':sample.t}, namespace='/test')
   except Exception as e:
     print e
@@ -275,7 +276,7 @@ if __name__ == '__main__':
   sock_server = UDPServer(args["host"], int(args["port"]), args["json"])
   osc_server = OSCServer(args["host"], 12345)
 
-  #define the list of callback fundctions now:
+  #define the list of callback functions now:
   docallback_toconsole = True
   docallback_csv = False
   docallback_socket = True
@@ -284,5 +285,4 @@ if __name__ == '__main__':
   bciboard_callbacks = [sock_server.handle_sample,osc_server.handle_sample,sendSocketMessage,printData] 
 
   socketio.run(app)
-  print "HERE"
   

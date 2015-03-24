@@ -16,7 +16,13 @@ You can set up a venv anywhere, but for this example we set it up in the directo
 > virtualenv ../venv #setup a virtual env (might need to specify 2.7 soon)
 > source ../venv/bin/activate #start the virtual machine
 > pip install -r requirements.txt #installs all the necesssary python libraries, takes a few minutes
+
+Note that this is not complete instructions for people running anaconda. It also appears that pyOSC can require some fiddling for certain configurations with pip. In case of an issue, this might help:
 ```
+pip install --allow-external pyOSC --allow-unverified pyOSC pyOSC==0.3.5b-5294
+```
+
+
 ##Running the Hub
 Once the venv is running (second line in above codeblock), starting the server should be as easy as:
 ```
